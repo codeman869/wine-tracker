@@ -5,6 +5,10 @@ const express = require('express');
 const cors  = require('cors');
 const { Pool } = require('pg');
 
+const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+});
+
 async function runSeed() {
     const sql = fs.readFileSync(path.join(__dirname, 'db', 'seed.sql')).toString();
     await pool.query(sql);
@@ -20,9 +24,7 @@ app.use(cors());
 app.use(express.static(path.join(__dirname, 'client', 'dist')))
 app.use(express.json());
 
-const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-});
+
 
 app.get('/api/wines', async (req,res) => {
 
