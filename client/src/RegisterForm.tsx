@@ -15,7 +15,7 @@ function RegisterForm() {
 
         let options;
         try {
-            const optionsRes = await fetch(`/api/generate-registration-options?username=${encodeURIComponent(username)}&name=${encodeURIComponent(name)}&token=${encodeURIComponent(token)}`);
+            const optionsRes = await fetch(`/api/auth/generate-registration-options?username=${encodeURIComponent(username)}&name=${encodeURIComponent(name)}&token=${encodeURIComponent(token)}`);
             if(!optionsRes.ok) {
                 const err = await optionsRes.json();
                 throw new Error(err.error || 'failed to generate registration options');
@@ -38,7 +38,7 @@ function RegisterForm() {
             return;
         }
 
-        const verificationResp = await fetch('/api/verify-registration', {
+        const verificationResp = await fetch('/api/auth/verify-registration', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'

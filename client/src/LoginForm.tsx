@@ -11,7 +11,7 @@ function LoginForm() {
 
         let optionsJSON; 
         try {
-            const optionsRes = await fetch(`/api/generate-authentication-options?username=${encodeURIComponent(username)}`);
+            const optionsRes = await fetch(`/api/auth/generate-authentication-options?username=${encodeURIComponent(username)}`);
 
             if(!optionsRes.ok) {
                 const err = await optionsRes.json();
@@ -37,7 +37,7 @@ function LoginForm() {
             return;
         }
 
-        const verificationResp = await fetch('/api/verify-authentication', {
+        const verificationResp = await fetch('/api/auth/verify-authentication', {
             method: 'POST',
             headers:  {
                 'Content-type': 'application/json'

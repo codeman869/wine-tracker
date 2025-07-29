@@ -2,16 +2,11 @@ require('dotenv').config();
 const path  = require('node:path');
 const fs = require('node:fs');
 const express = require('express');
-const session = require('express-session')
 const cors  = require('cors');
-const { Pool } = require('pg');
-const pgSession = require('connect-pg-simple')(session);
 
-const { generateRegistrationOptions, verifyRegistrationResponse, generateAuthenticationOptions, verifyAuthenticationResponse } = require('@simplewebauthn/server');
-
-const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-});
+const middleWare = require('./middleware');
+const routes = require('./routes');
+const pool = require('./db/pool');
 
 async function runSeed() {
     const sql = fs.readFileSync(path.join(__dirname, 'db', 'seed.sql')).toString();
@@ -26,198 +21,12 @@ const app = express();
 const PORT = process.env.port || 5000;
 
 app.use(cors());
-
-app.use(session({
-    store: new pgSession({
-        pool: pool,
-        tableName: 'user_sessions' 
-    }),
-    secret: process.env.SESSION_SECRET || 'keyboard kitty',
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-        secure: process.env.NODE_ENV == 'prod',
-        maxAge: 1000 * 60 * 15,
-    } 
-}));
-
-app.use(express.static(path.join(__dirname, 'client', 'dist')))
 app.use(express.json());
+app.use(middleWare);
 
+app.use('/api', routes)
 
-
-app.get('/api/wines', async (req,res) => {
-
-    const result = await pool.query('SELECT * FROM wines');
-    res.json(result.rows);
-});
-
-app.get('/api/generate-registration-options', async (req,res) => {
-    // Either logged in user or invitation code
-
-   //TODO: Add users ability to add more passkey devices
-    const { token, username, name } = req.query;
-
-    if(!token  && !username) {
-        return res.status(400).json({error: 'Invite token or username missing'})
-    }
-
-    //token
-    const tokenRow = await pool.query('SELECT * FROM invite_tokens WHERE token=$1 AND used_at IS NULL', [token]);
-    
-    if(tokenRow.rowCount === 0) {
-        return res.status(403).json({error: 'Invalid invite token'});
-    }
-
-    const userRow = await pool.query('SELECT * FROM users WHERE username=$1', [username]);
-
-    if(userRow.rowCount >= 1) {
-        return res.status(409).json({error: 'Username is already taken'});
-    }
-
-    // generate passkey generation
-    const options = await generateRegistrationOptions({
-        rpName: 'Wine Tracker',
-        rpID: 'localhost',
-        userName: username,
-        origin: 'http://localhost:5000',
-    })
-
-    req.session.pendingRegistration = {
-        token,
-        username,
-        name,
-        challenge: options.challenge,
-    };
-
-    res.json(options);
-});
-
-
-app.post('/api/verify-registration', async (req,res) => {
-    const { body } = req;
-    const { name, username,challenge, token } = req.session.pendingRegistration;
-
-    let verification;
-    try {
-        verification = await verifyRegistrationResponse({
-            response: body,
-            expectedChallenge: challenge,
-            expectedOrigin: 'http://localhost:5173',
-            expectedRPID: 'localhost'
-        });
-    } catch (error) {
-        return res.status(400).json({error: error.message});
-    }
-
-    const { verified, registrationInfo } = verification;
-
-    if( verified && registrationInfo) {
-        const {
-            credential,
-            credentialDeviceType,
-            CredentialBackedUp,
-        } = registrationInfo;
-
-    // Create user, store credential, link to new user, mark invite as used
-    const userRes = await pool.query('INSERT INTO users(username,display_name) VALUES($1,$2) RETURNING *',[username,name]);
-   
-    const credRes = await pool.query('INSERT INTO credentials(id,user_id,public_key,counter,credential_type,transports) VALUES($1,$2,$3,$4,$5,$6)',[credential.id,userRes.rows[0].id,Buffer.from(credential.publicKey),credential.counter,credentialDeviceType,body.response.transports]);
-    
-    const inviteRes = await pool.query('UPDATE invite_tokens SET used_at=$1, used_by_user_id=$2 WHERE token=$3',[new Date(),userRes.rows[0].id, token]);
-
-    }
-
-    res.send({ verified });
-
-});
-
-app.get('/api/generate-authentication-options', async (req,res) => {
-
-    const { username } = req.query;
-
-    const userReq = await pool.query('SELECT * FROM users WHERE USERNAME=$1', [username]);
-    
-    if(userReq.rows.length === 0 ) {
-        return res.status(400).json({error: 'User not found or invalid credentials'})
-    }
-   
-    const passkeysReq = await pool.query('SELECT * FROM credentials WHERE user_id=$1', [userReq.rows[0].id]);
-
-    if(passkeysReq.rows.length === 0) {
-        return res.status(400).json({error: 'User not found or invalid credentials'});
-    }
-
-    const options = await generateAuthenticationOptions({
-        rp_ID: 'localhost',
-        allowCredentials: passkeysReq.rows.map( passkey => ({
-            id:passkey.id,
-            type: 'public-key',
-            transports: passkey.transports || ['usb', 'nfc', 'ble', 'internal'],
-        })),
-    });
-
-    req.session.authenticationOptions = {
-        username,
-        challenge: options.challenge,
-    }
-
-    res.json(options);
-
-});
-
-app.post('/api/verify-authentication', async (req,res) => {
-
-    const { body } = req;
-    const {username, challenge} = req.session.authenticationOptions;
-
-    const userReq = await pool.query('SELECT * FROM users WHERE username=$1', [username]);
-
-    if(userReq.rows.length === 0) {
-        res.status(404).json({error:'User not found or invalid credentials'});
-    }
-
-    const passkeyReq = await pool.query('SELECT * FROM credentials WHERE id=$1 AND user_id=$2',[body.id,userReq.rows[0].id]);
-
-    if(passkeyReq.rows.length === 0) {
-        res.status(404).json({error:'User not found or invalid credentials'});
-    }
-
-    let verification;
-    try {
-        verification = await verifyAuthenticationResponse({
-            response:body,
-            expectedChallenge: challenge,
-            expectedOrigin: 'http://localhost:5173',
-            expectedRPID: 'localhost',
-            credential: {
-                id: passkeyReq.rows[0].id,
-                publicKey: passkeyReq.rows[0].public_key,
-                counter: passkeyReq.rows[0].counter,
-                transports: passkeyReq.rows[0].transports,
-            }
-
-
-        });
-    } catch (error) {
-        console.log(error);
-        return res.status(400).json({error: error});
-    }
-
-    const { verified } = verification;
-
-    if(verified) {
-        await pool.query('UPDATE credentials SET counter=$1 WHERE id=$2', [passkeyReq.rows[0].counter+1,passkeyReq.rows[0].id])
-    }
-
-    req.session.user = {
-        username
-    }
-
-    res.send({ verified });
-
-});
-
+app.use(express.static(path.join(__dirname, 'client', 'dist')));
 
 app.get(/(.*)/, (req,res) => (
     res.sendFile(path.join(__dirname, 'client','dist', 'index.html'))
