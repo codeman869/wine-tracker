@@ -5,9 +5,9 @@ const { generateRegistrationOptions, verifyRegistrationResponse, generateAuthent
 
 const pool = require('../db/pool');
 
-const rpName = process.env.rpName;
-const rpID = process.env.rpID;
-const origin = process.env.origin;
+const rpName = process.env.RP_NAME;
+const rpID = process.env.RP_ID;
+const origin = process.env.ORIGIN;
 
 router.get('/generate-registration-options', async (req,res) => {
     // Either logged in user or invitation code
