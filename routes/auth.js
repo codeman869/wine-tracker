@@ -140,6 +140,10 @@ router.post('/verify-authentication', async (req,res) => {
         res.status(404).json({error:'User not found or invalid credentials'});
     }
 
+    console.log(body);
+    console.log(username);
+    console.log(challenge);
+
     let verification;
     try {
         verification = await verifyAuthenticationResponse({

@@ -32,4 +32,7 @@ app.get(/(.*)/, (req,res) => (
     res.sendFile(path.join(__dirname, 'client','dist', 'index.html'))
 ));
 
+console.log(`RP_ID: ${process.env.rpID}`);
+console.log(`Origin: ${process.env.origin}`);
+
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
