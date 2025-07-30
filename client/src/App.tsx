@@ -3,16 +3,19 @@ import './App.css'
 import WineList from './WineList'
 import RegisterForm from './RegisterForm'
 import LoginForm from './LoginForm'
+import { AuthProvider } from './context/AuthProvider'
 
 function App() {
 
   return (
   <BrowserRouter>
-    <Routes>
-      <Route path="/register" element={<RegisterForm />}></Route>
-      <Route path="/login" element={<LoginForm />}></Route>
-      <Route path="/dashboard" element={<WineList />}></Route>
-    </Routes>
+    <AuthProvider>
+      <Routes>
+        <Route path="/register" element={<RegisterForm />}></Route>
+        <Route path="/login" element={<LoginForm />}></Route>
+        <Route path="/dashboard" element={<WineList />}></Route>
+      </Routes>
+    </AuthProvider>
   </BrowserRouter>
   )
 }

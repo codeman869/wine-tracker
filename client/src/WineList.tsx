@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useAuth } from "./context/AuthProvider";
 
 interface Wine {
     id: number,
@@ -14,18 +15,19 @@ interface Wine {
 function WineList() {
     const [wines, setWines] = useState<Wine[]>([]);
     const [loading,setLoading] = useState(true);
+    const { fetchWithAuth } = useAuth();
 
     useEffect(() => {
-        fetch('/api/wines')
-        .then(res => res.json())
-        .then(data => {
-            setWines(data);
+        fetchWithAuth('/api/wines')
+        .then(res => res?.json())
+        .then((data: Wine[]) => {
+            data &&  setWines(data);
             setLoading(false);
         }).catch(err => {
             console.error('Failed to fetch wines', err)
             setLoading(false);
         });
-    });
+    },[]);
 
     if (loading) return <p>Loading Wines...</p>;
 

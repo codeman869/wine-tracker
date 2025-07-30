@@ -5,6 +5,10 @@ const { generateRegistrationOptions, verifyRegistrationResponse, generateAuthent
 
 const pool = require('../db/pool');
 
+const rpName = process.env.rpName;
+const rpID = process.env.rpID;
+const origin = process.env.origin;
+
 router.get('/generate-registration-options', async (req,res) => {
     // Either logged in user or invitation code
 
@@ -30,10 +34,10 @@ router.get('/generate-registration-options', async (req,res) => {
 
     // generate passkey generation
     const options = await generateRegistrationOptions({
-        rpName: 'Wine Tracker',
-        rpID: 'localhost',
+        rpName,
+        rpID,
         userName: username,
-        origin: 'http://localhost:5000',
+        origin,
     })
 
     req.session.pendingRegistration = {
@@ -56,8 +60,8 @@ router.post('/verify-registration', async (req,res) => {
         verification = await verifyRegistrationResponse({
             response: body,
             expectedChallenge: challenge,
-            expectedOrigin: 'http://localhost:5173',
-            expectedRPID: 'localhost'
+            expectedOrigin: origin,
+            expectedRPID: rpID
         });
     } catch (error) {
         return res.status(400).json({error: error.message});
@@ -86,7 +90,7 @@ router.post('/verify-registration', async (req,res) => {
 });
 
 router.get('/generate-authentication-options', async (req,res) => {
-    
+
     const { username } = req.query;
 
     const userReq = await pool.query('SELECT * FROM users WHERE USERNAME=$1', [username]);
@@ -102,7 +106,7 @@ router.get('/generate-authentication-options', async (req,res) => {
     }
 
     const options = await generateAuthenticationOptions({
-        rp_ID: 'localhost',
+        rp_ID: rpID,
         allowCredentials: passkeysReq.rows.map( passkey => ({
             id:passkey.id,
             type: 'public-key',
@@ -141,8 +145,8 @@ router.post('/verify-authentication', async (req,res) => {
         verification = await verifyAuthenticationResponse({
             response:body,
             expectedChallenge: challenge,
-            expectedOrigin: 'http://localhost:5173',
-            expectedRPID: 'localhost',
+            expectedOrigin: origin,
+            expectedRPID: rpID,
             credential: {
                 id: passkeyReq.rows[0].id,
                 publicKey: passkeyReq.rows[0].public_key,
