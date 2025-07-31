@@ -140,10 +140,6 @@ router.post('/verify-authentication', async (req,res) => {
         res.status(404).json({error:'User not found or invalid credentials'});
     }
 
-    console.log(body);
-    console.log(username);
-    console.log(challenge);
-
     let verification;
     try {
         verification = await verifyAuthenticationResponse({
@@ -167,7 +163,7 @@ router.post('/verify-authentication', async (req,res) => {
 
     const { verified } = verification;
 
-    if(verified) {
+    if(verified) {  
         await pool.query('UPDATE credentials SET counter=$1 WHERE id=$2', [passkeyReq.rows[0].counter+1,passkeyReq.rows[0].id])
     }
 
